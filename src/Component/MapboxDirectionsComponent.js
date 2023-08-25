@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
 import mapboxgl, { GeolocateControl } from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
+import distance from '@turf/distance';
+import { point } from 'turf';
 
 const cspWorkerUrl = require('mapbox-gl/dist/mapbox-gl-csp-worker').default;
 
@@ -10,6 +12,7 @@ mapboxgl.workerClass = cspWorkerUrl;
 
 const MapboxDirectionsComponent = ({ origin, destination }) => {
   const [instructions, setInstructions] = useState([]);
+  const [userCoordinates, setuserCoordinates] = useState([]);
   const [currentInstructionIndex, setCurrentInstructionIndex] = useState(0); 
   const [isNavigationStarted, setNavigationStarted] = useState(false); 
 
@@ -17,22 +20,37 @@ const MapboxDirectionsComponent = ({ origin, destination }) => {
   const geolocateControlRef = useRef(null);
   const mapRef = useRef(null);
 
-  
 
-  const updateUserLocation = (event) => {
-    const userCoordinates = [event.coords.longitude, event.coords.latitude];
+  // const updateUserLocation = useCallback((event) => {
 
-    if (currentInstructionIndex < instructions.length - 1) {
-      const currentStep = instructions[currentInstructionIndex];
-      const stepCoordinates = currentStep.maneuver.location;
+  //   const success = (position) => {
+  //     setuserCoordinates(position.coords.latitude, position.coords.longitude);
+  //     console.log(userCoordinates);
+  //   }
 
-      const distanceToStep = mapRef.current.distance(userCoordinates, stepCoordinates);
+  //   const error = () => {
+  //     console.log('Unable to retrieve your location')
+  //   }
+  //   if (navigator.geolocation){
+  //     navigator.geolocation.getCurrentPosition(success, error)
+  //   }
+  //   else{
+  //     console.log("Gelocation not Supported");
+  //   }
+  //   //const userCoordinates = [event.coords.longitude, event.coords.latitude];
 
-      if (distanceToStep < 20) { // Adjust the threshold as needed
-        setCurrentInstructionIndex(currentInstructionIndex + 1);
-      }
-    }
-  };
+  //   if (currentInstructionIndex < instructions.length - 1) {
+  //     const currentStep = instructions[currentInstructionIndex];
+  //     const stepCoordinates = currentStep.maneuver.location;
+
+  //     const distanceToStep = mapRef.current.distance(userCoordinates, stepCoordinates);
+      
+  //     console.log("Distance b/w "+ distanceToStep);
+  //     if (distanceToStep < 50000) { // Adjust the threshold as needed
+  //       setCurrentInstructionIndex(currentInstructionIndex + 1);
+  //     }
+  //   }
+  // },[userCoordinates,currentInstructionIndex, instructions]);
 
   useEffect(() => {
     const map = new mapboxgl.Map({
@@ -76,33 +94,41 @@ const MapboxDirectionsComponent = ({ origin, destination }) => {
 
   const drawNavigationLine = (coordinates) => {
     const map = mapRef.current; // Retrieve the map instance from the ref
-    map.addSource('route', {
-      type: 'geojson',
-      data: {
-        type: 'Feature',
-        properties: {},
-        geometry: {
-          type: 'LineString',
-          coordinates: coordinates,
+    // if (map.getLayer("route")) {
+    //   map.removeLayer("route");
+    // }
+  
+    // if (map.getSource("route")) {
+    //   map.removeSource("route");
+    // }
+    
+      map.addSource('route', {
+        type: 'geojson',
+        data: {
+          type: 'Feature',
+          properties: {},
+          geometry: {
+            type: 'LineString',
+            coordinates: coordinates,
+          },
         },
-      },
-    });
-
-    map.addLayer({
-      id: 'route',
-      type: 'line',
-      source: 'route',
-      layout: {
-        'line-join': 'round',
-        'line-cap': 'round',
-      },
-      paint: {
-        'line-color': '#3887be',
-        'line-width': 5,
-        'line-opacity': 0.75,
-      },
-    });
-};
+      });
+  
+      map.addLayer({
+        id: 'route',
+        type: 'line',
+        source: 'route',
+        layout: {
+          'line-join': 'round',
+          'line-cap': 'round',
+        },
+        paint: {
+          'line-color': '#3887be',
+          'line-width': 5,
+          'line-opacity': 0.75,
+        },
+      });
+    };
 
 
   const handleStartNavigation = () => {
@@ -120,12 +146,13 @@ const MapboxDirectionsComponent = ({ origin, destination }) => {
             `https://api.mapbox.com/directions/v5/mapbox/walking/${origin[0]},${origin[1]};${destination[0]},${destination[1]}?alternatives=true&continue_straight=true&geometries=geojson&language=en&overview=full&steps=true&access_token=${mapboxgl.accessToken}`
           );
 
+          
           const data = await response.json();
           console.log('Directions API Response:', data);
 
           if (data.routes && data.routes.length > 0 && data.routes[0].legs[0].steps && data.routes[0].legs[0].steps.length > 0) {
             setInstructions(data.routes[0].legs[0].steps);
-
+            console.log(data.routes[0].legs[0].steps);
             // Extract the coordinates from the instructions and draw the navigation line
             const coordinates = data.routes[0].geometry.coordinates;
             drawNavigationLine(coordinates);
@@ -161,9 +188,46 @@ const MapboxDirectionsComponent = ({ origin, destination }) => {
 
     if (isNavigationStarted) {
       const geolocateControl = geolocateControlRef.current;
-  
+      
+      if(navigator.geolocation)
+      {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            setuserCoordinates([position.coords.latitude,position.coords.longitude])
+          },
+          () => {
+            console.log("Unable to retrieve your location")
+          });
+      }
+      else{
+        console.log("Geolocation not Supported");
+      }
+      console.log(userCoordinates)
+      if (currentInstructionIndex < instructions.length - 1) 
+      {
+            const currentStep = instructions[currentInstructionIndex];
+            const stepCoordinates = currentStep.maneuver.location;
+            console.log("usercoord "+ userCoordinates);
+            console.log("usercoord "+ typeof(userCoordinates));
+            console.log("stepcoords "+ stepCoordinates);
+            console.log("usercoord "+ typeof(stepCoordinates));
+            // const userCoords = Object.values(userCoordinates);
+            // const stepCoords = Object.values(stepCoordinates)
+            var from = point([userCoordinates['0'],userCoordinates['1']]);
+            var to = point([stepCoordinates['0'],userCoordinates['1']]);
+            // console.log("from:"+typeof(from)+"  To:"+typeof(to))
+            //const distanceToStep = mapRef.current.distance(userCoordinates, stepCoordinates);
+            const distanceToStep = distance(from,to)
+
+            console.log("Distance b/w "+ distanceToStep);
+            if (distanceToStep < 20) 
+            { // Adjust the threshold as needed
+              setCurrentInstructionIndex(currentInstructionIndex + 1);
+            }
+        }
       const geolocateHandler = () => {
-        navigator.geolocation.watchPosition(updateUserLocation);
+        navigator.geolocation.watchPosition(userCoordinates);
+        //console.log(updateUserLocation);
       };
   
       geolocateControl.on('geolocate', geolocateHandler);
@@ -171,8 +235,10 @@ const MapboxDirectionsComponent = ({ origin, destination }) => {
       return () => {
         geolocateControl.off('geolocate', geolocateHandler);
       };
+
+    
     }
-  }, [origin, destination, isNavigationStarted]);
+  }, [origin, destination, isNavigationStarted,userCoordinates, instructions,currentInstructionIndex]);
 
  
   return (
@@ -200,15 +266,16 @@ const MapboxDirectionsComponent = ({ origin, destination }) => {
           </button>
         )}
       </div>
-
+      
       {/* Display current instruction */}
       {isNavigationStarted && instructions.length > 0 && (
         <div style={{ width: '100%', maxWidth: '400px', padding: '10px', border: '1px solid #ccc', marginTop: '8px' }}>
           <h3>Current Instruction</h3>
           <p>{instructions[currentInstructionIndex].maneuver.instruction}</p>
+         
         </div>
       )}
-    </div>
+    </div>  
   );
 };
 

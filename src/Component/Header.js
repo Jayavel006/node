@@ -7,8 +7,8 @@ function Header() {
     <header className="App-header" style={headerStyle}>
       <h3>MCC Guide</h3>
       <nav>
-        <a href="#">Information</a>
-        <a href="#">College Map</a>
+        <a href="google.com">Information</a>
+        <a href="google.com">College Map</a>
         <a href="https://mcc.edu.in/">Link To Main Website</a>
       </nav>
       <div className="social-media-links" style={socialMediaLinksStyle}>
